@@ -9,11 +9,13 @@ use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Ramsey\Uuid\Uuid;
 
+
+
 class UserController extends Controller
 {
-    public $company_ids = [144, 148, 154, 164, 174];
-    public $company_id  = null;
-    public $new_company = '';
+    public $company_ids = [234, 258, 259, 265, 413, 444, 489, 144, 148, 154, 164, 174, 184, 255, 256, 257, 260, 266, 267, 270, 271, 272, 275, 277, 289, 290, 291, 313, 319, 320, 321, 323, 324, 325, 326, 327, 328, 330, 335, 338, 339, 340, 341, 342, 343, 344, 345, 347, 348, 350, 351, 357, 360, 361, 362, 367, 368, 369, 370, 399, 400, 401, 403, 404, 405, 409, 410, 412, 414, 415, 427, 439, 440, 445, 446, 447, 448, 449, 450, 451, 454, 455, 456, 457, 458, 461, 463, 464, 465, 467, 468, 469, 495, 519, 522, 524];
+    public $company_id  = '';
+    public $new_company = null;
 
     public function migrateCompany()
     {
@@ -164,6 +166,9 @@ class UserController extends Controller
                     'DELETE_APPROVAL_CIRCLE',
                     'UPDATE_PAYMENT_REQUEST',
                     'REVIEWER_MODE',
+                    'VIEW_ALL_OFFLINE_PAYMENT_REQUESTS',
+                    'VIEW_ALL_ONLINE_PAYMENT_REQUESTS',
+                    'VIEW_ALL_PURCHASE_REQUESTS'
                 ],
             ],
             [
@@ -174,6 +179,35 @@ class UserController extends Controller
                     'CREATE_OFFLINE_REQUESTS',
                     'CREATE_PURCHASE_REQUESTS',
                     'IS_ADMIN',
+                    'VIEW_ALL_OFFLINE_PAYMENT_REQUESTS',
+                    'VIEW_ALL_ONLINE_PAYMENT_REQUESTS',
+                    'VIEW_ALL_PURCHASE_REQUESTS',
+                    'CREATE_PAYEE',
+                    'ARCHIVE_PAYEE',
+                    'VIEW_PAYEES_PAGE',
+                    'VIEW_WALLET_PAGE',
+                    'VIEW_WALLET_HISTORY',
+                    'EXPORT_WALLET_HISTORY',
+                    'VIEW_TRANSACTIONS',
+                    'VIEW_COMPANY_ACCOUNT',
+                    'EXPORT_TRANSACTIONS',
+                    'VIEW_COMPANY_BALANCE',
+                    'VIEW_REPORT_STATEMENT',
+                    'VIEW_REPORT_BUDGET_STATUS',
+                    'VIEW_REPORT_EXPENSE_CATEGORY',
+                    'EDIT_APPROVAL_CIRCLE',
+                    'DELETE_APPROVAL_CIRCLE',
+                    'VIEW_COMPANY_BALANCE',
+                    'VIEW_BILLING_PAGE',
+                    'VIEW_EXPENSE_CATEGORY_PAGE',
+                    'CREATE_EXPENSE_CATEGORY',
+                    'DELETE_EXPENSE_CATEGORY',
+                    'EDIT_EXPENSE_CATEGORY',
+                    'CREATE_TEAM',
+                    'UPDATE_TEAM',
+                    'VIEW_TEAMS_PAGE',
+                    'COMPANY_KYC',
+
                 ],
             ],
             [
@@ -768,7 +802,7 @@ class UserController extends Controller
                             'entity_id' => $pid,
                             'level' => 'endorsement',
                             'notes' => $endorser->endorsement_notes,
-                            'status' => $endorser->endorsement_status == 2 ? 'declined' : ($endorser->endorsement_status == 1 ? 'endorsed' : 'pending'),
+                            'status' => $endorser->endorsement_status == 2 ? 'declined' : ($endorser->endorsement_status == 1 ? 'endorsed' : ($endorser->endorsement_status == 1 ? 'hidden' : 'pending')),
                             'created_at' => $endorser->DATE_ADDED,
                             'updated_at' => !$endorser->DATE_MODIFIED ? $endorser->DATE_ADDED : $endorser->DATE_MODIFIED,
                             'actioned_by_id' => $staff->id,
@@ -794,7 +828,7 @@ class UserController extends Controller
                                 'entity_id' => $pid,
                                 'level' => 'approval',
                                 'notes' => $approver->APPROVAL_NOTES,
-                                'status' => $approver->APPROVAL_STATUS == 2 ? 'declined' : ($approver->APPROVAL_STATUS == 1 ? 'approved' : 'pending'),
+                                'status' => $approver->APPROVAL_STATUS == 2 ? 'declined' : ($approver->APPROVAL_STATUS == 1 ? 'approved' : ($approver->APPROVAL_STATUS == 3 ? 'hidden' : 'pending')),
                                 'created_at' => $approver->DATE_ADDED,
                                 'updated_at' => !$approver->DATE_MODIFIED ? $approver->DATE_ADDED : $approver->DATE_MODIFIED,
                                 'actioned_by_id' => $staff->id,

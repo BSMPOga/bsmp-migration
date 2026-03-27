@@ -191,7 +191,6 @@ class UserController extends Controller
                     'VIEW_TRANSACTIONS',
                     'VIEW_COMPANY_ACCOUNT',
                     'EXPORT_TRANSACTIONS',
-                    'VIEW_COMPANY_BALANCE',
                     'VIEW_REPORT_STATEMENT',
                     'VIEW_REPORT_BUDGET_STATUS',
                     'VIEW_REPORT_EXPENSE_CATEGORY',

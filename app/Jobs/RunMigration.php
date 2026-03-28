@@ -15,7 +15,7 @@ class RunMigration implements ShouldQueue
     use Queueable;
     // [439,440,445,446,447,448,449,450,451,454,455,456,457,458,461,463,464,465,467,468,469,495,519,522,524];
 
-    public $timeout = 7200; // 2 hour max per job
+    public $timeout = 0; // no timeout — run until finished
     public $tries   = 1;
 
     public function __construct(public array $companyIds) {}

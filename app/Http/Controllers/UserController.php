@@ -700,7 +700,7 @@ class UserController extends Controller
 
     public function movePayments()
     {
-        $payments = DB::table('payments')->where('company_id', $this->company_id)->where('id', '>', 12398)->get();
+        $payments = DB::table('payments')->where('company_id', $this->company_id)->get();
         // return $payments;
 
         $default_budget = DB::connection('mysql2')->table('budget_categories')->where('name', 'Unclassified')->where('company_id', $this->new_company)->first();

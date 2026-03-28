@@ -14,8 +14,8 @@ use Ramsey\Uuid\Uuid;
 class UserController extends Controller
 {
     public $company_ids = [335, 338, 339, 340, 341, 342, 343, 344, 345, 347, 348, 350, 351, 357, 360, 361, 362, 367, 368, 369, 370, 399, 400, 401, 403, 404, 405, 409, 410, 412, 414, 415, 427, 439, 440, 445, 446, 447, 448, 449, 450, 451, 454, 455, 456, 457, 458, 461, 463, 464, 465, 467, 468, 469, 495, 519, 522, 524];
-    public $company_id  = '';
-    public $new_company = null;
+    public $company_id  = 330;
+    public $new_company = '1d59a07e-0476-472c-8e01-9f036d3e3b2d';
 
     public function migrateCompany()
     {
@@ -700,7 +700,7 @@ class UserController extends Controller
 
     public function movePayments()
     {
-        $payments = DB::table('payments')->where('company_id', $this->company_id)->get();
+        $payments = DB::table('payments')->where('company_id', $this->company_id)->where('id', '>', 12398)->get();
         // return $payments;
 
         $default_budget = DB::connection('mysql2')->table('budget_categories')->where('name', 'Unclassified')->where('company_id', $this->new_company)->first();
@@ -801,7 +801,7 @@ class UserController extends Controller
                             'entity_id' => $pid,
                             'level' => 'endorsement',
                             'notes' => $endorser->endorsement_notes,
-                            'status' => $endorser->endorsement_status == 2 ? 'declined' : ($endorser->endorsement_status == 1 ? 'endorsed' : ($endorser->endorsement_status == 1 ? 'hidden' : 'pending')),
+                            'status' => $endorser->endorsement_status == 2 ? 'declined' : ($endorser->endorsement_status == 1 ? 'endorsed' : ($endorser->endorsement_status == 3 ? 'hidden' : 'pending')),
                             'created_at' => $endorser->DATE_ADDED,
                             'updated_at' => !$endorser->DATE_MODIFIED ? $endorser->DATE_ADDED : $endorser->DATE_MODIFIED,
                             'actioned_by_id' => $staff->id,
@@ -1045,7 +1045,7 @@ class UserController extends Controller
                                     'entity_id' => $pid,
                                     'level' => 'endorsement',
                                     'notes' => $endorser->endorsement_notes,
-                                    'status' => $endorser->endorsement_status == 2 ? 'declined' : ($endorser->endorsement_status == 1 ? 'endorsed' : 'pending'),
+                                    'status' => $endorser->endorsement_status == 2 ? 'declined' : ($endorser->endorsement_status == 1 ? 'endorsed' : ($endorser->endorsement_status == 3 ? 'hidden' : 'pending')),
                                     'created_at' => $endorser->DATE_ADDED,
                                     'updated_at' => !$endorser->DATE_MODIFIED ? $endorser->DATE_ADDED : $endorser->DATE_MODIFIED,
                                     'actioned_by_id' => $staff->id,
@@ -1071,7 +1071,7 @@ class UserController extends Controller
                                         'entity_id' => $pid,
                                         'level' => 'approval',
                                         'notes' => $approver->APPROVAL_NOTES,
-                                        'status' => $approver->APPROVAL_STATUS == 2 ? 'declined' : ($approver->APPROVAL_STATUS == 1 ? 'approved' : 'pending'),
+                                        'status' => $approver->APPROVAL_STATUS == 2 ? 'declined' : ($approver->APPROVAL_STATUS == 1 ? 'approved' : ($approver->APPROVAL_STATUS == 3 ? 'hidden' : 'pending')),
                                         'created_at' => $approver->DATE_ADDED,
                                         'updated_at' => !$approver->DATE_MODIFIED ? $approver->DATE_ADDED : $approver->DATE_MODIFIED,
                                         'actioned_by_id' => $staff->id,

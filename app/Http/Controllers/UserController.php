@@ -13,9 +13,9 @@ use Ramsey\Uuid\Uuid;
 
 class UserController extends Controller
 {
-    public $company_ids = [234, 258, 259, 265, 413, 444, 489, 144, 148, 154, 164, 174, 184, 255, 256, 257, 260, 266, 267, 270, 271, 272, 275, 277, 289, 290, 291, 313, 319, 320, 321, 323, 324, 325, 326, 327, 328, 330, 335, 338, 339, 340, 341, 342, 343, 344, 345, 347, 348, 350, 351, 357, 360, 361, 362, 367, 368, 369, 370, 399, 400, 401, 403, 404, 405, 409, 410, 412, 414, 415, 427, 439, 440, 445, 446, 447, 448, 449, 450, 451, 454, 455, 456, 457, 458, 461, 463, 464, 465, 467, 468, 469, 495, 519, 522, 524];
-    public $company_id  = null;
-    public $new_company = null;
+    public $company_ids = [4, 14, 34, 104, 564, 574, 584, 594, 604, 614, 624, 634, 644, 654, 664, 674, 684, 694, 704, 714, 724, 754, 764, 774, 784, 794, 804, 814, 824, 834, 844, 854, 914, 934, 954, 964, 974, 984, 994];
+    public $company_id  = 144;
+    public $new_company = 'ed49b69e-4f3a-4e6a-81d8-aedff10324fe';
 
     public function migrateCompany()
     {
@@ -756,7 +756,7 @@ class UserController extends Controller
 
                 $pid = DB::connection('mysql2')->table('payment_requests')->insertGetId([
                     'company_id' => $this->new_company,
-                    'payment_number' => $pay->payment_no ?? 2000000001,
+                    'payment_number' => $pay->payment_no ?? 20001,
                     'amount' => $pay->total * 100,
                     'status' => $status,
                     'business_purpose' => $pay->business_purpose,
@@ -1222,7 +1222,7 @@ class UserController extends Controller
 
     public function moveTransactions()
     {
-        $trans = DB::table('transactions')->where('company_id', $this->company_id)->get();
+        $trans = DB::table('transactions')->where('company_id', $this->company_id)->where('id', 120718)->get();
         // return $trans;
 
         foreach ($trans as $tran) {
@@ -1336,7 +1336,7 @@ class UserController extends Controller
                 $ps = 'declined';
                 break;
             case 4:
-                $ps = 'paid';
+                $ps = 'processed';
                 break;
             case 5:
                 $ps = 'error_in_payment';
@@ -1389,7 +1389,7 @@ class UserController extends Controller
                 $ps = 'awaiting_funds';
                 break;
             case 5:
-                $ps = 'paid';
+                $ps = 'processed';
                 break;
             case 6:
                 $ps = 'processing';

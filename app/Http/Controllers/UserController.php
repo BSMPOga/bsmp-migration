@@ -13,9 +13,82 @@ use Ramsey\Uuid\Uuid;
 
 class UserController extends Controller
 {
-    public $company_ids = [4, 14, 34, 104, 564, 574, 584, 594, 604, 614, 624, 634, 644, 654, 664, 674, 684, 694, 704, 714, 724, 754, 764, 774, 784, 794, 804, 814, 824, 834, 844, 854, 914, 934, 954, 964, 974, 984, 994];
+    public $company_ids = [
+        94,
+        214,
+        254,
+        276,
+        279,
+        280,
+        282,
+        366,
+        288,
+        292,
+        293,
+        305,
+        306,
+        307,
+        308,
+        309,
+        310,
+        311,
+        312,
+        314,
+        315,
+        316,
+        322,
+        333,
+        334,
+        526,
+        527,
+        537,
+        538,
+        521,
+        523,
+        549,
+        550,
+        551,
+        553,
+        554,
+        555,
+        557,
+        560,
+        561,
+        563,
+        565,
+        566,
+        567,
+        569,
+        571,
+        572,
+        578,
+        579,
+        580,
+        582,
+        583,
+        474,
+        475,
+        505,
+        513,
+        514,
+        515,
+        470,
+        471,
+        473,
+        518,
+        358,
+        366,
+        398,
+        411,
+        431,
+        432,
+        462,
+        466,
+        581,
+        337
+    ];
     public $company_id  = 144;
-    public $new_company = 'ed49b69e-4f3a-4e6a-81d8-aedff10324fe';
+    public $new_company = '';
 
     public function migrateCompany()
     {
@@ -536,9 +609,26 @@ class UserController extends Controller
             ->where('companyId', $this->company_id)
             ->get();
 
+
         $com = DB::connection('mysql2')->table('companies')->where('id', $this->new_company)->first();
         if (!$com) {
             return 'New company not found';
+        }
+
+        $setting = DB::table('settings')
+            ->where('companyId', $this->company_id)
+            ->latest('id')->first();
+
+        $pref = json_decode($setting->preferences);
+
+        if ($pref->approvalCircle) {
+            $preferences = DB::connection('mysql2')->table('preferences')->where('value', 'ENABLE_APPROVAL_CIRCLE')->first();
+            if ($preferences) {
+                DB::connection('mysql2')->table('companies_preferences')->where('companiesId', $this->new_company)->where('preferencesId', $preferences->id)->update([
+                    'status' => true,
+                    'visible' => true
+                ]);
+            }
         }
 
         // Preload all staffs ONCE instead of querying inside the loop
@@ -1476,5 +1566,31 @@ class UserController extends Controller
         }
 
         return $md;
+    }
+
+    public function updateApprovalCircleStatus()
+    {
+        $companies = DB::connection('mysql2')->table('companies')->whereNotNull('old_company_id')->get();
+        foreach ($companies as $company) {
+            $setting = DB::table('settings')
+                ->where('companyId', $company->old_company_id)
+                ->latest('id')->first();
+
+            $pref = json_decode($setting->preferences);
+
+            Log::info("Company - $company->name - approval circle status - " . ($pref->approvalCircle ?? 'not found'));
+
+            if ($pref->approvalCircle) {
+                DB::connection('mysql2')->table('companies_preferences')->where('companiesId', $company->id)->where('preferencesId', 16)->update([
+                    'status' => true,
+                    'visible' => true
+                ]);
+            } else {
+                DB::connection('mysql2')->table('companies_preferences')->where('companiesId', $company->id)->where('preferencesId', 16)->update([
+                    'visible' => true
+                ]);
+            }
+        }
+        return $companies;
     }
 }

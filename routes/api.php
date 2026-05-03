@@ -15,3 +15,6 @@ Route::get('/migrate-purchases', [UserController::class, 'movePurchases']);
 Route::get('/migrate-wallet', [UserController::class, 'moveWallet']);
 Route::get('/migrate-billing', [UserController::class, 'moveBilling']);
 Route::get('/migrate-transactions', [UserController::class, 'moveTransactions']);
+
+
+Route::get('/updateApprovalCircleStatus', [UserController::class, 'updateApprovalCircleStatus']);

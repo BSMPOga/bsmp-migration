@@ -87,8 +87,8 @@ class UserController extends Controller
         581,
         337
     ];
-    public $company_id  = 144;
-    public $new_company = '';
+    public $company_id  = null;
+    public $new_company = null;
 
     public function migrateCompany()
     {

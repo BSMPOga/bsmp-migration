@@ -1312,7 +1312,7 @@ class UserController extends Controller
 
     public function moveTransactions()
     {
-        $trans = DB::table('transactions')->where('company_id', $this->company_id)->where('id', 120718)->get();
+        $trans = DB::table('transactions')->where('company_id', $this->company_id)->get();
         // return $trans;
 
         foreach ($trans as $tran) {

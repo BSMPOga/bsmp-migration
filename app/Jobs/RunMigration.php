@@ -6,6 +6,7 @@ use App\Http\Controllers\UserController;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class RunMigration implements ShouldQueue
 {
@@ -38,27 +39,50 @@ class RunMigration implements ShouldQueue
             $controller->company_id  = $id;
             $controller->new_company = '';
 
-            Log::info("Migration started for company [{$id}]");
+            Log::info("Transaction Migration started for company [{$id}]");
 
-            try {
-                $controller->new_company = $controller->migrateCompany();
-                Log::info("Migration company [{$id}] step [company] done: {$controller->new_company}");
-            } catch (\Throwable $e) {
-                Log::error("Migration company [{$id}] step [company] failed: " . $e->getMessage());
+            $company = DB::connection('mysql2')->table('companies')->where('old_company_id', $id)->first();
+            if (!$company) {
+                Log::error("Company with old_company_id [{$id}] not found in the database.");
                 continue;
             }
-
-            foreach ($steps as $key => $method) {
-                try {
-                    $controller->$method();
-                    Log::info("Migration company [{$id}] step [{$key}] done");
-                } catch (\Throwable $e) {
-                    Log::error("Migration company [{$id}] step [{$key}] failed: " . $e->getMessage());
-                    break;
-                }
+            $controller->new_company = $company->id;
+            try {
+                $controller->moveTransactions();
+                Log::info("Transaction Migration company [{$id}] done");
+            } catch (\Throwable $e) {
+                Log::error("Transaction Migration company [{$id}] failed: " . $e->getMessage());
+                break;
             }
-
-            Log::info("Migration finished for company [{$id}]");
         }
+
+        Log::info("Transaction Migration finished completely");
+
+        // foreach ($this->companyIds as $id) {
+        //     $controller->company_id  = $id;
+        //     $controller->new_company = '';
+
+        //     Log::info("Migration started for company [{$id}]");
+
+        //     try {
+        //         $controller->new_company = $controller->migrateCompany();
+        //         Log::info("Migration company [{$id}] step [company] done: {$controller->new_company}");
+        //     } catch (\Throwable $e) {
+        //         Log::error("Migration company [{$id}] step [company] failed: " . $e->getMessage());
+        //         continue;
+        //     }
+
+        //     foreach ($steps as $key => $method) {
+        //         try {
+        //             $controller->$method();
+        //             Log::info("Migration company [{$id}] step [{$key}] done");
+        //         } catch (\Throwable $e) {
+        //             Log::error("Migration company [{$id}] step [{$key}] failed: " . $e->getMessage());
+        //             break;
+        //         }
+        //     }
+
+        //     Log::info("Migration finished for company [{$id}]");
+        // }
     }
 }

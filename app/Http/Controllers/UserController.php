@@ -87,7 +87,7 @@ class UserController extends Controller
     //     581,
     //     337
     // ];
-    public $company_ids = [537, 474, 280, 475, 583, 214, 526, 549, 276, 279, 515, 521, 551, 553, 557, 560, 567, 579, 582, 584];
+    public $company_ids = [537, 474, 280, 583, 214, 526, 549, 276, 279, 515, 521, 551, 553, 557, 560, 567, 579, 582, 584];
     public $company_id  = null;
     public $new_company = null;
 

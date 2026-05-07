@@ -543,6 +543,7 @@ class UserController extends Controller
 
             $mass = [];
             foreach ($payees as $payee) {
+                Log::info("payee - $payee->id");
                 $created_by = $this->findUserWithOldId($payee->created_by); //DB::connection('mysql2')->table('staffs')->where('old_user_id', $payee->created_by)->first();
                 $mass[] = [
                     'name' => $payee->name,

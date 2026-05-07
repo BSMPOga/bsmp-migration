@@ -532,38 +532,42 @@ class UserController extends Controller
 
     public function migratePayee()
     {
-        $payees = DB::table('suppliers')->where('company_id', $this->company_id)->get();
-        $com = DB::connection('mysql2')->table('companies')->where('id', $this->new_company)->first();
-        if (!$com) {
-            return 'New Company not found';
-        }
+        $max = DB::connection('mysql2')->table('payees')->where('company_id', $this->new_company)->orderByDesc('id')->first();
 
-        $mass = [];
-        foreach ($payees as $payee) {
-            $created_by = $this->findUserWithOldId($payee->created_by); //DB::connection('mysql2')->table('staffs')->where('old_user_id', $payee->created_by)->first();
-            $mass[] = [
-                'name' => $payee->name,
-                'company_id' => $this->new_company,
-                'has_supplier_access' => false,
-                'bank_country' => 'Nigeria',
-                'currency' => 'NGN',
-                'bank_name' => $payee->bank_name,
-                'account_name' => $payee->account_name,
-                'account_number' => $payee->account_number,
-                'email' => $payee->email,
-                'phone' => $payee->phone,
-                'country' => 'Nigeria',
-                'contact_person' => $payee->contact_name,
-                'deleted_at' => $payee->is_deleted == 1 ? now() : null,
-                'bank_code' => $payee->bank_code,
-                'type' => $payee->type == 1 ? 'employee' : ($payee->type == 0 ? 'supplier' : 'others'),
-                'created_by' => $created_by ?  $created_by->id : null,
-                'old_payee_id' => $payee->id,
-            ];
-        }
-        $ab = DB::connection('mysql2')->table('payees')->insert($mass);
+        if ($max) {
+            $payees = DB::table('suppliers')->where('company_id', $this->company_id)->where('id', '>', $max->old_payee_id)->get();
+            $com = DB::connection('mysql2')->table('companies')->where('id', $this->new_company)->first();
+            if (!$com) {
+                return 'New Company not found';
+            }
 
-        return "$this->new_company payee done";
+            $mass = [];
+            foreach ($payees as $payee) {
+                $created_by = $this->findUserWithOldId($payee->created_by); //DB::connection('mysql2')->table('staffs')->where('old_user_id', $payee->created_by)->first();
+                $mass[] = [
+                    'name' => $payee->name,
+                    'company_id' => $this->new_company,
+                    'has_supplier_access' => false,
+                    'bank_country' => 'Nigeria',
+                    'currency' => 'NGN',
+                    'bank_name' => $payee->bank_name,
+                    'account_name' => $payee->account_name,
+                    'account_number' => $payee->account_number,
+                    'email' => $payee->email,
+                    'phone' => $payee->phone,
+                    'country' => 'Nigeria',
+                    'contact_person' => $payee->contact_name,
+                    'deleted_at' => $payee->is_deleted == 1 ? now() : null,
+                    'bank_code' => $payee->bank_code,
+                    'type' => $payee->type == 1 ? 'employee' : ($payee->type == 0 ? 'supplier' : 'others'),
+                    'created_by' => $created_by ?  $created_by->id : null,
+                    'old_payee_id' => $payee->id,
+                ];
+            }
+            $ab = DB::connection('mysql2')->table('payees')->insert($mass);
+
+            return "$this->new_company payee done";
+        }
     }
 
     public function migrateGroups()

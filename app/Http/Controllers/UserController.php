@@ -791,7 +791,9 @@ class UserController extends Controller
 
     public function movePayments()
     {
-        $payments = DB::table('payments')->where('company_id', $this->company_id)->get();
+        $max = DB::connection('mysql2')->table('payment_requests')->where('company_id', $this->new_company)->orderByDesc('id')->first();
+
+        $payments = DB::table('payments')->where('company_id', $this->company_id)->where('id', '>', $max->old_payment_id)->get();
         // return $payments;
 
         $default_budget = DB::connection('mysql2')->table('budget_categories')->where('name', 'Unclassified')->where('company_id', $this->new_company)->first();
@@ -966,7 +968,9 @@ class UserController extends Controller
 
     public function movePurchases()
     {
-        $purchases = DB::table('order')->where('company_id', $this->company_id)->get();
+        $max = DB::connection('mysql2')->table('purchases')->where('company_id', $this->new_company)->orderByDesc('id')->first();
+
+        $purchases = DB::table('order')->where('company_id', $this->company_id)->where('id', '>', $max->old_purchase_id)->get();
 
         $default_budget = DB::connection('mysql2')->table('budget_categories')->where('name', 'Unclassified')->where('company_id', $this->new_company)->first();
         $count = 1;
@@ -1200,7 +1204,9 @@ class UserController extends Controller
 
     public function moveWallet()
     {
-        $wallet = DB::table('wallet')->where('company_id', $this->company_id)->get();
+        $max = DB::connection('mysql2')->table('webhooks')->where('company_id', $this->new_company)->orderByDesc('id')->first();
+
+        $wallet = DB::table('wallet')->where('company_id', $this->company_id)->where('id', '>', $max->old_wallet_id)->get();
         // return $wallet;
 
         foreach ($wallet as $wal) {

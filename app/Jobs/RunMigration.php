@@ -48,6 +48,28 @@ class RunMigration implements ShouldQueue
             }
             $controller->new_company = $company->id;
             try {
+                $controller->moveWallet();
+                Log::info("Wallet Migration company [{$id}] done");
+            } catch (\Throwable $e) {
+                Log::error("Wallet Migration company [{$id}] failed: " . $e->getMessage());
+                break;
+            }
+            try {
+                $controller->movePurchases();
+                Log::info("Purchase Migration company [{$id}] done");
+            } catch (\Throwable $e) {
+                Log::error("Purchase Migration company [{$id}] failed: " . $e->getMessage());
+                break;
+            }
+            try {
+                $controller->movePayments();
+                Log::info("Payment Migration company [{$id}] done");
+            } catch (\Throwable $e) {
+                Log::error("Payment Migration company [{$id}] failed: " . $e->getMessage());
+                break;
+            }
+
+            try {
                 $controller->moveTransactions();
                 Log::info("Transaction Migration company [{$id}] done");
             } catch (\Throwable $e) {

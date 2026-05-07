@@ -793,472 +793,477 @@ class UserController extends Controller
     {
         $max = DB::connection('mysql2')->table('payment_requests')->where('company_id', $this->new_company)->orderByDesc('id')->first();
 
-        $payments = DB::table('payments')->where('company_id', $this->company_id)->where('id', '>', $max->old_payment_id)->get();
-        // return $payments;
+        if ($max) {
+            $payments = DB::table('payments')->where('company_id', $this->company_id)->where('id', '>', $max->old_payment_id)->get();
+            // return $payments;
 
-        $default_budget = DB::connection('mysql2')->table('budget_categories')->where('name', 'Unclassified')->where('company_id', $this->new_company)->first();
-        // return $default_budget;
-        foreach ($payments as $pay) {
-            DB::transaction(function () use ($pay, $default_budget) {
-                Log::info("payment - $pay->id");
-                $status = $this->paymentStatus($pay->status);
-                $endo_queue = DB::table('endorsement_queue')->where('company_id', $this->company_id)->where('mode', 'Payment')->where('mode_id', $pay->id)->get();
-                $appr_queue = DB::table('approval_queue')->where('company_id', $this->company_id)->where('mode', 'Payment')->where('order_id', $pay->id)->get();
-                if ($status == 'awaiting_approval') {
-                    if (count($endo_queue) > 0 && $endo_queue->contains('endorsement_status', 3)) {
-                        $status = 'awaiting_endorsement';
+            $default_budget = DB::connection('mysql2')->table('budget_categories')->where('name', 'Unclassified')->where('company_id', $this->new_company)->first();
+            // return $default_budget;
+            foreach ($payments as $pay) {
+                DB::transaction(function () use ($pay, $default_budget) {
+                    Log::info("payment - $pay->id");
+                    $status = $this->paymentStatus($pay->status);
+                    $endo_queue = DB::table('endorsement_queue')->where('company_id', $this->company_id)->where('mode', 'Payment')->where('mode_id', $pay->id)->get();
+                    $appr_queue = DB::table('approval_queue')->where('company_id', $this->company_id)->where('mode', 'Payment')->where('order_id', $pay->id)->get();
+                    if ($status == 'awaiting_approval') {
+                        if (count($endo_queue) > 0 && $endo_queue->contains('endorsement_status', 3)) {
+                            $status = 'awaiting_endorsement';
+                        }
                     }
-                }
-                $recurring_frequency = null;
-                $recurring_interval = null;
-                if ($pay->recurringPeriod) {
-                    $rp = json_decode($pay->recurringPeriod);
-                    Log::info('recurring');
-                    Log::info($rp->recurringFrequency);
-                    $recurring_interval = $rp->recurringFrequency;
-                    $recurring_frequency = $rp->recurringMode;
-                }
-                $raised_by = $this->findUserWithOldId($pay->paid_by);
-                $bud_id = $default_budget->id;
-                $sub_bud_id = null;
-                if ($pay->category && $pay->category != 1) {
-                    $bud = DB::connection('mysql2')->table('budget_categories')->where('old_budget_id', $pay->category)->where('company_id', $this->new_company)->first();
-                    if (!$bud) {
-                        $sub_bud = DB::connection('mysql2')->table('budget_sub_categories')->where('old_sub_budget_id', $pay->category)->first();
-                        // if()
-                        $sub_bud_id = $sub_bud->id;
-                        $bud_id = $sub_bud->category_id;
-                    } else {
-                        $bud_id = $bud->id;
+                    $recurring_frequency = null;
+                    $recurring_interval = null;
+                    if ($pay->recurringPeriod) {
+                        $rp = json_decode($pay->recurringPeriod);
+                        Log::info('recurring');
+                        Log::info($rp->recurringFrequency);
+                        $recurring_interval = $rp->recurringFrequency;
+                        $recurring_frequency = $rp->recurringMode;
                     }
-                }
-
-                $payee = null;
-                if ($pay->payee_id != "0" && $pay->payee_id != 0) {
-                    $pd = DB::connection('mysql2')->table('payees')->where('old_payee_id', $pay->payee_id)->first();
-                    $payee = $pd->id;
-                }
-
-
-                $d = Carbon::parse($pay->due_date);
-                if ($d->year < 1000) {
-                    $d->year = 2023; // or any fallback year
-                }
-
-                $due_date = $d->format('Y-m-d H:i:s');
-
-                $pid = DB::connection('mysql2')->table('payment_requests')->insertGetId([
-                    'company_id' => $this->new_company,
-                    'payment_number' => $pay->payment_no ?? 20001,
-                    'amount' => $pay->total * 100,
-                    'status' => $status,
-                    'business_purpose' => $pay->business_purpose,
-                    'attachments' => $pay->attachment &&  $pay->attachment != '' ? json_encode([["url" => $pay->attachment, "tags" => [], "type" => "upload", "bytes" => 120814, "folder" => "", "secure_url" => $pay->attachment, "placeholder" => false, "resource_type" => "raw", "original_filename" => "document"]]) : null,
-                    'type' => !$pay->type || $pay->type == 'recurring' ? 'online' : $pay->type,
-                    'is_recurring' => $pay->recurringPeriod ? true : false,
-                    'recurring_frequency' => "monthly",
-                    'recurring_interval' => $recurring_interval,
-                    'bsmp_ref' => $pay->ref,
-                    'bank_ref' => $pay->sessionID,
-                    'session_id' => $pay->sessionID,
-
-                    'due_at' => $due_date,
-                    'paid_at' => $pay->paidAt,
-                    'left_at' => $pay->leftAt,
-                    'created_at' => $pay->created_at,
-                    'updated_at' => !$pay->updated_at || $pay->updated_at == '0000-00-00 00:00:00'  ? $pay->created_at : $pay->updated_at,
-                    "raised_by_id" => $pay->paid_by == 828 ? 1 : $raised_by->id,
-                    "payee_id" => $payee,
-                    'metadata' => json_encode(["payee" => ["payee_name" => $pay->payee_name], "monnify_response" => $pay->method_ref]),
-                    "budget_category_id" => $bud_id,
-                    "budget_sub_category_id" => $sub_bud_id,
-                    "currency_id" => 1,
-                    "retry" => $pay->retries,
-                    "total" => $pay->total * 100,
-                    'method' => $pay->method,
-                    'old_payment_id' => $pay->id
-                ]);
-
-                // save endorsers
-                if (count($endo_queue) > 0) {
-                    foreach ($endo_queue as $endorser) {
-                        $user = DB::connection('mysql2')->table('users')->where('email', $endorser->EXECUTOR_ID)->first();
-                        $staff = DB::connection('mysql2')->table('staffs')->where('user_id', $user->id)->where('company_id', $this->new_company)->first();
-
-                        DB::connection('mysql2')->table('payment_requests_endorsers')->insert([
-                            'paymentRequestsId' => $pid,
-                            'staffsId' => $staff->id,
-                        ]);
-                        DB::connection('mysql2')->table('request_queue')->insert([
-                            'entity_type' => 'Entity/Payment',
-                            'entity_id' => $pid,
-                            'level' => 'endorsement',
-                            'notes' => $endorser->endorsement_notes,
-                            'status' => $endorser->endorsement_status == 2 ? 'declined' : ($endorser->endorsement_status == 1 ? 'endorsed' : ($endorser->endorsement_status == 3 ? 'hidden' : 'pending')),
-                            'created_at' => $endorser->DATE_ADDED,
-                            'updated_at' => !$endorser->DATE_MODIFIED ? $endorser->DATE_ADDED : $endorser->DATE_MODIFIED,
-                            'actioned_by_id' => $staff->id,
-                            'added_by_id' => $pay->paid_by == 828 ? 1 : $raised_by->id,
-                            'company_id' => $this->new_company
-                        ]);
+                    $raised_by = $this->findUserWithOldId($pay->paid_by);
+                    $bud_id = $default_budget->id;
+                    $sub_bud_id = null;
+                    if ($pay->category && $pay->category != 1) {
+                        $bud = DB::connection('mysql2')->table('budget_categories')->where('old_budget_id', $pay->category)->where('company_id', $this->new_company)->first();
+                        if (!$bud) {
+                            $sub_bud = DB::connection('mysql2')->table('budget_sub_categories')->where('old_sub_budget_id', $pay->category)->first();
+                            // if()
+                            $sub_bud_id = $sub_bud->id;
+                            $bud_id = $sub_bud->category_id;
+                        } else {
+                            $bud_id = $bud->id;
+                        }
                     }
-                }
 
-                // save approvers
-                if (count($appr_queue) > 0) {
-                    foreach ($appr_queue as $approver) {
-                        if ($approver->EXECUTOR_ID != "undefined") {
-                            $user = DB::connection('mysql2')->table('users')->where('email', $approver->EXECUTOR_ID)->first();
+                    $payee = null;
+                    if ($pay->payee_id != "0" && $pay->payee_id != 0) {
+                        $pd = DB::connection('mysql2')->table('payees')->where('old_payee_id', $pay->payee_id)->first();
+                        $payee = $pd->id;
+                    }
+
+
+                    $d = Carbon::parse($pay->due_date);
+                    if ($d->year < 1000) {
+                        $d->year = 2023; // or any fallback year
+                    }
+
+                    $due_date = $d->format('Y-m-d H:i:s');
+
+                    $pid = DB::connection('mysql2')->table('payment_requests')->insertGetId([
+                        'company_id' => $this->new_company,
+                        'payment_number' => $pay->payment_no ?? 20001,
+                        'amount' => $pay->total * 100,
+                        'status' => $status,
+                        'business_purpose' => $pay->business_purpose,
+                        'attachments' => $pay->attachment &&  $pay->attachment != '' ? json_encode([["url" => $pay->attachment, "tags" => [], "type" => "upload", "bytes" => 120814, "folder" => "", "secure_url" => $pay->attachment, "placeholder" => false, "resource_type" => "raw", "original_filename" => "document"]]) : null,
+                        'type' => !$pay->type || $pay->type == 'recurring' ? 'online' : $pay->type,
+                        'is_recurring' => $pay->recurringPeriod ? true : false,
+                        'recurring_frequency' => "monthly",
+                        'recurring_interval' => $recurring_interval,
+                        'bsmp_ref' => $pay->ref,
+                        'bank_ref' => $pay->sessionID,
+                        'session_id' => $pay->sessionID,
+
+                        'due_at' => $due_date,
+                        'paid_at' => $pay->paidAt,
+                        'left_at' => $pay->leftAt,
+                        'created_at' => $pay->created_at,
+                        'updated_at' => !$pay->updated_at || $pay->updated_at == '0000-00-00 00:00:00'  ? $pay->created_at : $pay->updated_at,
+                        "raised_by_id" => $pay->paid_by == 828 ? 1 : $raised_by->id,
+                        "payee_id" => $payee,
+                        'metadata' => json_encode(["payee" => ["payee_name" => $pay->payee_name], "monnify_response" => $pay->method_ref]),
+                        "budget_category_id" => $bud_id,
+                        "budget_sub_category_id" => $sub_bud_id,
+                        "currency_id" => 1,
+                        "retry" => $pay->retries,
+                        "total" => $pay->total * 100,
+                        'method' => $pay->method,
+                        'old_payment_id' => $pay->id
+                    ]);
+
+                    // save endorsers
+                    if (count($endo_queue) > 0) {
+                        foreach ($endo_queue as $endorser) {
+                            $user = DB::connection('mysql2')->table('users')->where('email', $endorser->EXECUTOR_ID)->first();
                             $staff = DB::connection('mysql2')->table('staffs')->where('user_id', $user->id)->where('company_id', $this->new_company)->first();
 
-                            DB::connection('mysql2')->table('payment_requests_approvers')->insert([
+                            DB::connection('mysql2')->table('payment_requests_endorsers')->insert([
                                 'paymentRequestsId' => $pid,
                                 'staffsId' => $staff->id,
                             ]);
                             DB::connection('mysql2')->table('request_queue')->insert([
                                 'entity_type' => 'Entity/Payment',
                                 'entity_id' => $pid,
-                                'level' => 'approval',
-                                'notes' => $approver->APPROVAL_NOTES,
-                                'status' => $approver->APPROVAL_STATUS == 2 ? 'declined' : ($approver->APPROVAL_STATUS == 1 ? 'approved' : ($approver->APPROVAL_STATUS == 3 ? 'hidden' : 'pending')),
-                                'created_at' => $approver->DATE_ADDED,
-                                'updated_at' => !$approver->DATE_MODIFIED ? $approver->DATE_ADDED : $approver->DATE_MODIFIED,
+                                'level' => 'endorsement',
+                                'notes' => $endorser->endorsement_notes,
+                                'status' => $endorser->endorsement_status == 2 ? 'declined' : ($endorser->endorsement_status == 1 ? 'endorsed' : ($endorser->endorsement_status == 3 ? 'hidden' : 'pending')),
+                                'created_at' => $endorser->DATE_ADDED,
+                                'updated_at' => !$endorser->DATE_MODIFIED ? $endorser->DATE_ADDED : $endorser->DATE_MODIFIED,
                                 'actioned_by_id' => $staff->id,
-                                'added_by_id' => $pay->paid_by == 828 ? 1  : $raised_by->id,
+                                'added_by_id' => $pay->paid_by == 828 ? 1 : $raised_by->id,
                                 'company_id' => $this->new_company
                             ]);
                         }
                     }
-                }
 
-                // save cc
+                    // save approvers
+                    if (count($appr_queue) > 0) {
+                        foreach ($appr_queue as $approver) {
+                            if ($approver->EXECUTOR_ID != "undefined") {
+                                $user = DB::connection('mysql2')->table('users')->where('email', $approver->EXECUTOR_ID)->first();
+                                $staff = DB::connection('mysql2')->table('staffs')->where('user_id', $user->id)->where('company_id', $this->new_company)->first();
 
-                if ($pay->cc && $pay->cc != 'null' && $pay->cc != '""' && $pay->cc != "") {
-                    $ccs = json_decode($pay->cc);
-                    foreach ($ccs as $cc) {
-                        $st = $this->findStaffWithEmail($cc);
-                        DB::connection('mysql2')->table('payment_requests_cc')->insert([
-                            'paymentRequestsId' => $pid,
-                            'staffsId' => $st->id
+                                DB::connection('mysql2')->table('payment_requests_approvers')->insert([
+                                    'paymentRequestsId' => $pid,
+                                    'staffsId' => $staff->id,
+                                ]);
+                                DB::connection('mysql2')->table('request_queue')->insert([
+                                    'entity_type' => 'Entity/Payment',
+                                    'entity_id' => $pid,
+                                    'level' => 'approval',
+                                    'notes' => $approver->APPROVAL_NOTES,
+                                    'status' => $approver->APPROVAL_STATUS == 2 ? 'declined' : ($approver->APPROVAL_STATUS == 1 ? 'approved' : ($approver->APPROVAL_STATUS == 3 ? 'hidden' : 'pending')),
+                                    'created_at' => $approver->DATE_ADDED,
+                                    'updated_at' => !$approver->DATE_MODIFIED ? $approver->DATE_ADDED : $approver->DATE_MODIFIED,
+                                    'actioned_by_id' => $staff->id,
+                                    'added_by_id' => $pay->paid_by == 828 ? 1  : $raised_by->id,
+                                    'company_id' => $this->new_company
+                                ]);
+                            }
+                        }
+                    }
+
+                    // save cc
+
+                    if ($pay->cc && $pay->cc != 'null' && $pay->cc != '""' && $pay->cc != "") {
+                        $ccs = json_decode($pay->cc);
+                        foreach ($ccs as $cc) {
+                            $st = $this->findStaffWithEmail($cc);
+                            DB::connection('mysql2')->table('payment_requests_cc')->insert([
+                                'paymentRequestsId' => $pid,
+                                'staffsId' => $st->id
+                            ]);
+                        }
+                    }
+
+                    // save activity
+                    $activities = DB::table('document_activity')->where('doc_type', 'Payment')->where('document_id', $pay->id)->get();
+
+                    foreach ($activities as $act) {
+                        $act_user = $raised_by;
+                        if ($act->user_id != 0) {
+                            $act_user = $this->findUserWithOldId($act->user_id);
+                        }
+                        DB::connection('mysql2')->table('request_activities')->insert([
+                            'entity_id' => $pid,
+                            'entity_type' => 'Entity/Payment',
+                            'action' => $this->paymentActivityMode($act->activity_mode),
+                            'action_note' => $act->activity,
+                            'created_at' => $act->activity_date,
+                            'actioned_by_id' => $pay->paid_by == 828 ? 1  : $act_user->id
                         ]);
                     }
-                }
-
-                // save activity
-                $activities = DB::table('document_activity')->where('doc_type', 'Payment')->where('document_id', $pay->id)->get();
-
-                foreach ($activities as $act) {
-                    $act_user = $raised_by;
-                    if ($act->user_id != 0) {
-                        $act_user = $this->findUserWithOldId($act->user_id);
-                    }
-                    DB::connection('mysql2')->table('request_activities')->insert([
-                        'entity_id' => $pid,
-                        'entity_type' => 'Entity/Payment',
-                        'action' => $this->paymentActivityMode($act->activity_mode),
-                        'action_note' => $act->activity,
-                        'created_at' => $act->activity_date,
-                        'actioned_by_id' => $pay->paid_by == 828 ? 1  : $act_user->id
-                    ]);
-                }
-            });
+                });
+            }
+            return "$this->new_company Payments done";
         }
-        return "$this->new_company Payments done";
     }
 
     public function movePurchases()
     {
         $max = DB::connection('mysql2')->table('purchases')->where('company_id', $this->new_company)->orderByDesc('id')->first();
 
-        $purchases = DB::table('order')->where('company_id', $this->company_id)->where('id', '>', $max->old_purchase_id)->get();
+        if ($max) {
+            $purchases = DB::table('order')->where('company_id', $this->company_id)->where('id', '>', $max->old_purchase_id)->get();
 
-        $default_budget = DB::connection('mysql2')->table('budget_categories')->where('name', 'Unclassified')->where('company_id', $this->new_company)->first();
-        $count = 1;
-        foreach ($purchases as $pay) {
-            DB::transaction(function () use ($pay, $default_budget, $count) {
-                Log::info("purchases - $pay->id");
-                $type = 'bill';
-                $merchant = 'vtpass';
-                if ($pay->merchant == 'Jumia' || $pay->merchant == 'Konga') {
-                    $type = $pay->merchant;
-                    $products = DB::table('order_products')->where('order_id', $pay->id)->get();
-                } else {
-                    $products = DB::table('utilityItems')->where('orderId', $pay->id)->get();
-                }
-                $status = $this->purchaseStatus($pay->approval_status);
-                $endo_queue = DB::table('endorsement_queue')->where('company_id', $this->company_id)->where('mode', NULL)->where('mode_id', $pay->id)->get();
-                $appr_queue = DB::table('approval_queue')->where('company_id', $this->company_id)->where('mode', NULL)->where('order_id', $pay->id)->get();
-                if ($status == 'awaiting_approval') {
-                    if (count($endo_queue) > 0 && $endo_queue->contains('endorsement_status', 3)) {
-                        $status = 'awaiting_endorsement';
+            $default_budget = DB::connection('mysql2')->table('budget_categories')->where('name', 'Unclassified')->where('company_id', $this->new_company)->first();
+            $count = 1;
+            foreach ($purchases as $pay) {
+                DB::transaction(function () use ($pay, $default_budget, $count) {
+                    Log::info("purchases - $pay->id");
+                    $type = 'bill';
+                    $merchant = 'vtpass';
+                    if ($pay->merchant == 'Jumia' || $pay->merchant == 'Konga') {
+                        $type = $pay->merchant;
+                        $products = DB::table('order_products')->where('order_id', $pay->id)->get();
+                    } else {
+                        $products = DB::table('utilityItems')->where('orderId', $pay->id)->get();
                     }
-                }
-                $raised_by = $this->findStaffWithEmail($pay->order_by);
-                $bud_id = $default_budget->id;
-                $sub_bud_id = null;
+                    $status = $this->purchaseStatus($pay->approval_status);
+                    $endo_queue = DB::table('endorsement_queue')->where('company_id', $this->company_id)->where('mode', NULL)->where('mode_id', $pay->id)->get();
+                    $appr_queue = DB::table('approval_queue')->where('company_id', $this->company_id)->where('mode', NULL)->where('order_id', $pay->id)->get();
+                    if ($status == 'awaiting_approval') {
+                        if (count($endo_queue) > 0 && $endo_queue->contains('endorsement_status', 3)) {
+                            $status = 'awaiting_endorsement';
+                        }
+                    }
+                    $raised_by = $this->findStaffWithEmail($pay->order_by);
+                    $bud_id = $default_budget->id;
+                    $sub_bud_id = null;
 
 
-                if (count($products) > 0) {
-                    foreach ($products as $key => $prod) {
-                        $cor_type = 'airtime';
-                        $provider = 'mtn';
-                        $fee = 0;
-                        $amount = 0;
-                        $commission = 0;
-                        $metadata = [];
-                        $updated = $pay->date;
-                        if ($type == 'Jumia' || $type == 'Konga') {
-                            $amount = $prod->price;
-                            $cor_type = strtolower($type);
-                            $provider = strtolower($type);
-                            $merchant = strtolower($pay->merchant);
-                            $metadata = [
-                                'phone' => $pay->phone,
-                                'store' => [
-                                    'description' => $prod->description,
-                                    'quantity' => $prod->quantity,
-                                    'price' => $prod->price,
-                                    'shipping' => $prod->shipping,
-                                    'tax' => $prod->tax,
+                    if (count($products) > 0) {
+                        foreach ($products as $key => $prod) {
+                            $cor_type = 'airtime';
+                            $provider = 'mtn';
+                            $fee = 0;
+                            $amount = 0;
+                            $commission = 0;
+                            $metadata = [];
+                            $updated = $pay->date;
+                            if ($type == 'Jumia' || $type == 'Konga') {
+                                $amount = $prod->price;
+                                $cor_type = strtolower($type);
+                                $provider = strtolower($type);
+                                $merchant = strtolower($pay->merchant);
+                                $metadata = [
                                     'phone' => $pay->phone,
-                                    'shipping_date' => $pay->shipping_date,
-                                    'delivery_address' => $pay->delivery_address,
-                                    'city' => $pay->city,
-                                    'state' => $pay->state,
-                                    'purchase_order_request' => $pay->purchase_order_request,
-                                ]
-                            ];
-                        } else {
-                            $amount = $prod->amount;
-                            $commission = $prod->commission ?? 0;
-                            $updated = $prod->updatedAt;
-                            if ($prod->method) {
-                                $merchant = strtolower($prod->method);
-                            }
-                            if ($prod->convinienceFee) {
-                                $fee = $prod->convinienceFee;
-                            }
-                            if ($prod->category) {
-                                $bud = DB::connection('mysql2')->table('budget_categories')->where('old_budget_id', $prod->category)->where('company_id', $this->new_company)->first();
-                                if (!$bud) {
-                                    $sub_bud = DB::connection('mysql2')->table('budget_sub_categories')->where('old_sub_budget_id', $prod->category)->first();
-                                    // if()
-                                    $sub_bud_id = $sub_bud->id;
-                                    $bud_id = $sub_bud->category_id;
-                                } else {
-                                    $bud_id = $bud->id;
-                                }
-                            }
-
-                            if ($prod->type) {
-                                $cor_type = $prod->type;
-                                $provider = strtolower($prod->utilityName);
+                                    'store' => [
+                                        'description' => $prod->description,
+                                        'quantity' => $prod->quantity,
+                                        'price' => $prod->price,
+                                        'shipping' => $prod->shipping,
+                                        'tax' => $prod->tax,
+                                        'phone' => $pay->phone,
+                                        'shipping_date' => $pay->shipping_date,
+                                        'delivery_address' => $pay->delivery_address,
+                                        'city' => $pay->city,
+                                        'state' => $pay->state,
+                                        'purchase_order_request' => $pay->purchase_order_request,
+                                    ]
+                                ];
                             } else {
-                                if ($prod->utilityName) {
-                                    if (str_contains($prod->utilityName, 'electric')) {
-                                        $cor_type = 'electricity_bill';
-                                    } elseif ($prod->utilityName == 'MTN' || $prod->utilityName == 'GLO' || $prod->utilityName == 'AIRTEL' || $prod->utilityName == '9MOBILE') {
-                                        $cor_type = 'airtime';
-                                    } elseif (str_contains($prod->utilityName, 'tv')) {
-                                        $cor_type = 'tv_subscription';
+                                $amount = $prod->amount;
+                                $commission = $prod->commission ?? 0;
+                                $updated = $prod->updatedAt;
+                                if ($prod->method) {
+                                    $merchant = strtolower($prod->method);
+                                }
+                                if ($prod->convinienceFee) {
+                                    $fee = $prod->convinienceFee;
+                                }
+                                if ($prod->category) {
+                                    $bud = DB::connection('mysql2')->table('budget_categories')->where('old_budget_id', $prod->category)->where('company_id', $this->new_company)->first();
+                                    if (!$bud) {
+                                        $sub_bud = DB::connection('mysql2')->table('budget_sub_categories')->where('old_sub_budget_id', $prod->category)->first();
+                                        // if()
+                                        $sub_bud_id = $sub_bud->id;
+                                        $bud_id = $sub_bud->category_id;
                                     } else {
-                                        $cor_type = 'data';
+                                        $bud_id = $bud->id;
                                     }
+                                }
+
+                                if ($prod->type) {
+                                    $cor_type = $prod->type;
                                     $provider = strtolower($prod->utilityName);
                                 } else {
-                                    if (!$prod->productInfo || empty((array)$prod->productInfo)) {
-                                        if ($prod->amount < 500) {
+                                    if ($prod->utilityName) {
+                                        if (str_contains($prod->utilityName, 'electric')) {
+                                            $cor_type = 'electricity_bill';
+                                        } elseif ($prod->utilityName == 'MTN' || $prod->utilityName == 'GLO' || $prod->utilityName == 'AIRTEL' || $prod->utilityName == '9MOBILE') {
                                             $cor_type = 'airtime';
-                                            $provider = $prod->utilityName;
-                                        }
-                                    } else {
-                                        if ($pay->merchant == 'airtime') {
-                                            $cor_type = 'airtime';
-                                            $provider = $prod->utilityName;
+                                        } elseif (str_contains($prod->utilityName, 'tv')) {
+                                            $cor_type = 'tv_subscription';
                                         } else {
-                                            $decode = json_decode($prod->productInfo);
-                                            if (str_contains($decode->variation_code, 'tv')) {
-                                                $cor_type = 'tv_subscription';
-                                                $provider = strtolower($decode->variation_code);
+                                            $cor_type = 'data';
+                                        }
+                                        $provider = strtolower($prod->utilityName);
+                                    } else {
+                                        if (!$prod->productInfo || empty((array)$prod->productInfo)) {
+                                            if ($prod->amount < 500) {
+                                                $cor_type = 'airtime';
+                                                $provider = $prod->utilityName;
+                                            }
+                                        } else {
+                                            if ($pay->merchant == 'airtime') {
+                                                $cor_type = 'airtime';
+                                                $provider = $prod->utilityName;
                                             } else {
-                                                $cor_type = $pay->merchant;
+                                                $decode = json_decode($prod->productInfo);
+                                                if (str_contains($decode->variation_code, 'tv')) {
+                                                    $cor_type = 'tv_subscription';
+                                                    $provider = strtolower($decode->variation_code);
+                                                } else {
+                                                    $cor_type = $pay->merchant;
+                                                }
                                             }
                                         }
                                     }
                                 }
+                                $metadata = [
+                                    'phone' => $pay->phone,
+                                    'provider_response' => $prod->methodRef,
+                                ];
+                                if ($prod->productInfo && !empty((array)$prod->productInfo)) {
+                                    array_merge($metadata, (array)$prod->productInfo);
+                                }
+                                if ($cor_type == 'electricity_bill') {
+                                    $metadata['meter_no'] = $prod->utilityProductCode;
+                                }
                             }
-                            $metadata = [
-                                'phone' => $pay->phone,
-                                'provider_response' => $prod->methodRef,
-                            ];
-                            if ($prod->productInfo && !empty((array)$prod->productInfo)) {
-                                array_merge($metadata, (array)$prod->productInfo);
-                            }
-                            if ($cor_type == 'electricity_bill') {
-                                $metadata['meter_no'] = $prod->utilityProductCode;
-                            }
-                        }
 
-                        $pid = DB::connection('mysql2')->table('purchases')->insertGetId([
-                            'company_id' => $this->new_company,
-                            'purchase_number' => $key > 0 ? 3000001 + $count : $pay->order_no,
-                            'amount' => $amount * 100,
-                            'status' => $status,
-                            'business_purpose' => $pay->summary . ' /n ' . $pay->detail,
-                            'country' => NULL,
-                            'type' => $cor_type,
-                            'provider' => $provider,
-                            'merchant' => $merchant,
-                            'fee' => $fee * 100,
-                            'other_fees' => NULL,
-                            'due_at' => $pay->date,
-                            'bsmp_ref' => NULL,
-                            'recipient_name' => NULL,
-                            "budget_category_id" => $bud_id,
-                            "budget_sub_category_id" => $sub_bud_id,
-                            'commission' => $commission * 100,
-                            'old_purchase_id' => $pay->id,
-                            'created_at' => $pay->date,
-                            'updated_at' => $updated,
-                            "raised_by" => $raised_by->id,
-                            'total' => (floatval($amount) + floatval($fee)) * 100,
-                            'metadata' => json_encode($metadata),
-                        ]);
+                            $pid = DB::connection('mysql2')->table('purchases')->insertGetId([
+                                'company_id' => $this->new_company,
+                                'purchase_number' => $key > 0 ? 3000001 + $count : $pay->order_no,
+                                'amount' => $amount * 100,
+                                'status' => $status,
+                                'business_purpose' => $pay->summary . ' /n ' . $pay->detail,
+                                'country' => NULL,
+                                'type' => $cor_type,
+                                'provider' => $provider,
+                                'merchant' => $merchant,
+                                'fee' => $fee * 100,
+                                'other_fees' => NULL,
+                                'due_at' => $pay->date,
+                                'bsmp_ref' => NULL,
+                                'recipient_name' => NULL,
+                                "budget_category_id" => $bud_id,
+                                "budget_sub_category_id" => $sub_bud_id,
+                                'commission' => $commission * 100,
+                                'old_purchase_id' => $pay->id,
+                                'created_at' => $pay->date,
+                                'updated_at' => $updated,
+                                "raised_by" => $raised_by->id,
+                                'total' => (floatval($amount) + floatval($fee)) * 100,
+                                'metadata' => json_encode($metadata),
+                            ]);
 
-                        // save endorsers
-                        if (count($endo_queue) > 0) {
-                            foreach ($endo_queue as $endorser) {
-                                $user = DB::connection('mysql2')->table('users')->where('email', $endorser->EXECUTOR_ID)->first();
-                                $staff = DB::connection('mysql2')->table('staffs')->where('user_id', $user->id)->where('company_id', $this->new_company)->first();
-
-                                DB::connection('mysql2')->table('purchase_requests_endorsers')->insert([
-                                    'purchaseRequestId' => $pid,
-                                    'staffsId' => $staff->id,
-                                ]);
-                                DB::connection('mysql2')->table('request_queue')->insert([
-                                    'entity_type' => 'Entity/Purchase',
-                                    'entity_id' => $pid,
-                                    'level' => 'endorsement',
-                                    'notes' => $endorser->endorsement_notes,
-                                    'status' => $endorser->endorsement_status == 2 ? 'declined' : ($endorser->endorsement_status == 1 ? 'endorsed' : ($endorser->endorsement_status == 3 ? 'hidden' : 'pending')),
-                                    'created_at' => $endorser->DATE_ADDED,
-                                    'updated_at' => !$endorser->DATE_MODIFIED ? $endorser->DATE_ADDED : $endorser->DATE_MODIFIED,
-                                    'actioned_by_id' => $staff->id,
-                                    'added_by_id' => $raised_by->id,
-                                    'company_id' => $this->new_company
-                                ]);
-                            }
-                        }
-
-                        // save approvers
-                        if (count($appr_queue) > 0) {
-                            foreach ($appr_queue as $approver) {
-                                if ($approver->EXECUTOR_ID != "undefined") {
-                                    $user = DB::connection('mysql2')->table('users')->where('email', $approver->EXECUTOR_ID)->first();
+                            // save endorsers
+                            if (count($endo_queue) > 0) {
+                                foreach ($endo_queue as $endorser) {
+                                    $user = DB::connection('mysql2')->table('users')->where('email', $endorser->EXECUTOR_ID)->first();
                                     $staff = DB::connection('mysql2')->table('staffs')->where('user_id', $user->id)->where('company_id', $this->new_company)->first();
 
-                                    DB::connection('mysql2')->table('purchase_requests_approvers')->insert([
+                                    DB::connection('mysql2')->table('purchase_requests_endorsers')->insert([
                                         'purchaseRequestId' => $pid,
                                         'staffsId' => $staff->id,
                                     ]);
                                     DB::connection('mysql2')->table('request_queue')->insert([
                                         'entity_type' => 'Entity/Purchase',
                                         'entity_id' => $pid,
-                                        'level' => 'approval',
-                                        'notes' => $approver->APPROVAL_NOTES,
-                                        'status' => $approver->APPROVAL_STATUS == 2 ? 'declined' : ($approver->APPROVAL_STATUS == 1 ? 'approved' : ($approver->APPROVAL_STATUS == 3 ? 'hidden' : 'pending')),
-                                        'created_at' => $approver->DATE_ADDED,
-                                        'updated_at' => !$approver->DATE_MODIFIED ? $approver->DATE_ADDED : $approver->DATE_MODIFIED,
+                                        'level' => 'endorsement',
+                                        'notes' => $endorser->endorsement_notes,
+                                        'status' => $endorser->endorsement_status == 2 ? 'declined' : ($endorser->endorsement_status == 1 ? 'endorsed' : ($endorser->endorsement_status == 3 ? 'hidden' : 'pending')),
+                                        'created_at' => $endorser->DATE_ADDED,
+                                        'updated_at' => !$endorser->DATE_MODIFIED ? $endorser->DATE_ADDED : $endorser->DATE_MODIFIED,
                                         'actioned_by_id' => $staff->id,
                                         'added_by_id' => $raised_by->id,
                                         'company_id' => $this->new_company
                                     ]);
                                 }
                             }
-                        }
 
+                            // save approvers
+                            if (count($appr_queue) > 0) {
+                                foreach ($appr_queue as $approver) {
+                                    if ($approver->EXECUTOR_ID != "undefined") {
+                                        $user = DB::connection('mysql2')->table('users')->where('email', $approver->EXECUTOR_ID)->first();
+                                        $staff = DB::connection('mysql2')->table('staffs')->where('user_id', $user->id)->where('company_id', $this->new_company)->first();
 
-                        // save activity
-                        $activities = DB::table('order_activity')->where('order_id', $pay->id)->get();
-
-                        foreach ($activities as $act) {
-                            $act_user = $raised_by;
-                            if ($act->user_id != 0) {
-                                $act_user = $this->findUserWithOldId($act->user_id);
+                                        DB::connection('mysql2')->table('purchase_requests_approvers')->insert([
+                                            'purchaseRequestId' => $pid,
+                                            'staffsId' => $staff->id,
+                                        ]);
+                                        DB::connection('mysql2')->table('request_queue')->insert([
+                                            'entity_type' => 'Entity/Purchase',
+                                            'entity_id' => $pid,
+                                            'level' => 'approval',
+                                            'notes' => $approver->APPROVAL_NOTES,
+                                            'status' => $approver->APPROVAL_STATUS == 2 ? 'declined' : ($approver->APPROVAL_STATUS == 1 ? 'approved' : ($approver->APPROVAL_STATUS == 3 ? 'hidden' : 'pending')),
+                                            'created_at' => $approver->DATE_ADDED,
+                                            'updated_at' => !$approver->DATE_MODIFIED ? $approver->DATE_ADDED : $approver->DATE_MODIFIED,
+                                            'actioned_by_id' => $staff->id,
+                                            'added_by_id' => $raised_by->id,
+                                            'company_id' => $this->new_company
+                                        ]);
+                                    }
+                                }
                             }
-                            DB::connection('mysql2')->table('request_activities')->insert([
-                                'entity_id' => $pid,
-                                'entity_type' => 'Entity/Purchase',
-                                'action' => $this->purchaseActivityMode($act->activity_mode),
-                                'action_note' => $act->activity,
-                                'created_at' => $act->activity_date,
-                                'actioned_by_id' => $act_user->id
-                            ]);
+
+
+                            // save activity
+                            $activities = DB::table('order_activity')->where('order_id', $pay->id)->get();
+
+                            foreach ($activities as $act) {
+                                $act_user = $raised_by;
+                                if ($act->user_id != 0) {
+                                    $act_user = $this->findUserWithOldId($act->user_id);
+                                }
+                                DB::connection('mysql2')->table('request_activities')->insert([
+                                    'entity_id' => $pid,
+                                    'entity_type' => 'Entity/Purchase',
+                                    'action' => $this->purchaseActivityMode($act->activity_mode),
+                                    'action_note' => $act->activity,
+                                    'created_at' => $act->activity_date,
+                                    'actioned_by_id' => $act_user->id
+                                ]);
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
+            return "$this->new_company purchases done";
         }
-        return "$this->new_company purchases done";
     }
 
     public function moveWallet()
     {
         $max = DB::connection('mysql2')->table('webhooks')->where('company_id', $this->new_company)->orderByDesc('id')->first();
+        if ($max) {
+            $wallet = DB::table('wallet')->where('company_id', $this->company_id)->where('id', '>', $max->old_wallet_id)->get();
+            // return $wallet;
 
-        $wallet = DB::table('wallet')->where('company_id', $this->company_id)->where('id', '>', $max->old_wallet_id)->get();
-        // return $wallet;
-
-        foreach ($wallet as $wal) {
-            $provider = 'clan';
-            if ($wal->method == 'Advace') {
-                $provider = 'cash_advance';
-            } else if (strtolower($wal->method)  == 'providus') {
-                $provider = 'providus';
-            } else {
+            foreach ($wallet as $wal) {
                 $provider = 'clan';
+                if ($wal->method == 'Advace') {
+                    $provider = 'cash_advance';
+                } else if (strtolower($wal->method)  == 'providus') {
+                    $provider = 'providus';
+                } else {
+                    $provider = 'clan';
+                }
+                $payload = [
+                    "data" => [
+                        "amount" => $wal->amount,
+                        "bankcode" => null,
+                        "bankname" => $wal->origin_bank,
+                        "currency" => 'NGN',
+                        "craccount" => $wal->account_number,
+                        "narration" => $wal->narration,
+                        "reference" => $wal->reference_id,
+                        "sessionid" => $wal->sessionId,
+                        "created_at" => $wal->date,
+                        "craccountname" => null,
+                        "originatorname" => $wal->origin_accountname,
+                        "paymentreference" => $wal->reference_id,
+                        "settlementId" => $wal->settlementId,
+                        "originatoraccountnumber" => $wal->origin_accountno,
+                    ],
+                    "txref" => '',
+                    "status" => true,
+                    "message" => 'Transaction successful',
+                    "request_id" => '',
+                    "transactionreference" => '',
+                ];
+                DB::connection('mysql2')->table('webhooks')->insert([
+                    'company_id' => $this->new_company,
+                    'old_wallet_id' => $wal->id,
+                    'provider' => $provider,
+                    'title' => 'walletFund',
+                    'payload' => json_encode($payload),
+                    'created_at' => $wal->date,
+                    'updated_at' => $wal->date,
+                    'reference_no' => $wal->reference_id,
+                    'amount' => $wal->amount * 100,
+                    'account_number' => $wal->account_number,
+                    'origin_account_number' => $wal->origin_accountno,
+                    'origin_account_name' => $wal->origin_accountname,
+                    'origin_bank' => $wal->origin_bank,
+                    'narration' => $wal->narration,
+                ]);
             }
-            $payload = [
-                "data" => [
-                    "amount" => $wal->amount,
-                    "bankcode" => null,
-                    "bankname" => $wal->origin_bank,
-                    "currency" => 'NGN',
-                    "craccount" => $wal->account_number,
-                    "narration" => $wal->narration,
-                    "reference" => $wal->reference_id,
-                    "sessionid" => $wal->sessionId,
-                    "created_at" => $wal->date,
-                    "craccountname" => null,
-                    "originatorname" => $wal->origin_accountname,
-                    "paymentreference" => $wal->reference_id,
-                    "settlementId" => $wal->settlementId,
-                    "originatoraccountnumber" => $wal->origin_accountno,
-                ],
-                "txref" => '',
-                "status" => true,
-                "message" => 'Transaction successful',
-                "request_id" => '',
-                "transactionreference" => '',
-            ];
-            DB::connection('mysql2')->table('webhooks')->insert([
-                'company_id' => $this->new_company,
-                'old_wallet_id' => $wal->id,
-                'provider' => $provider,
-                'title' => 'walletFund',
-                'payload' => json_encode($payload),
-                'created_at' => $wal->date,
-                'updated_at' => $wal->date,
-                'reference_no' => $wal->reference_id,
-                'amount' => $wal->amount * 100,
-                'account_number' => $wal->account_number,
-                'origin_account_number' => $wal->origin_accountno,
-                'origin_account_name' => $wal->origin_accountname,
-                'origin_bank' => $wal->origin_bank,
-                'narration' => $wal->narration,
-            ]);
+            return "$this->new_company wallet done";
         }
-        return "$this->new_company wallet done";
     }
 
     public function moveBilling()

@@ -39,7 +39,7 @@ class RunMigration implements ShouldQueue
             $controller->company_id  = $id;
             $controller->new_company = '';
 
-            Log::info("Transaction Migration started for company [{$id}]");
+
 
             $company = DB::connection('mysql2')->table('companies')->where('old_company_id', $id)->first();
             if (!$company) {
@@ -47,6 +47,7 @@ class RunMigration implements ShouldQueue
                 continue;
             }
             $controller->new_company = $company->id;
+            Log::info("Wallet Migration started for company [{$id}]");
             try {
                 $controller->moveWallet();
                 Log::info("Wallet Migration company [{$id}] done");
@@ -54,6 +55,7 @@ class RunMigration implements ShouldQueue
                 Log::error("Wallet Migration company [{$id}] failed: " . $e->getMessage());
                 break;
             }
+            Log::info("Purchase Migration started for company [{$id}]");
             try {
                 $controller->movePurchases();
                 Log::info("Purchase Migration company [{$id}] done");
@@ -61,6 +63,7 @@ class RunMigration implements ShouldQueue
                 Log::error("Purchase Migration company [{$id}] failed: " . $e->getMessage());
                 break;
             }
+            Log::info("Payment Migration started for company [{$id}]");
             try {
                 $controller->movePayments();
                 Log::info("Payment Migration company [{$id}] done");
@@ -69,6 +72,7 @@ class RunMigration implements ShouldQueue
                 break;
             }
 
+            Log::info("Transaction Migration started for company [{$id}]");
             try {
                 $controller->moveTransactions();
                 Log::info("Transaction Migration company [{$id}] done");

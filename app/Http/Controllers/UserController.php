@@ -1405,6 +1405,9 @@ class UserController extends Controller
             case 11:
                 $ps = 'canceled';
                 break;
+            case 12:
+                $ps = 'processed';
+                break;
             case 99:
                 $ps = 'archived';
                 break;

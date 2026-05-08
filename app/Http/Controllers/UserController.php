@@ -761,9 +761,10 @@ class UserController extends Controller
                     $bud = DB::connection('mysql2')->table('budget_categories')->where('old_budget_id', $pay->category)->where('company_id', $this->new_company)->first();
                     if (!$bud) {
                         $sub_bud = DB::connection('mysql2')->table('budget_sub_categories')->where('old_sub_budget_id', $pay->category)->first();
-                        // if()
-                        $sub_bud_id = $sub_bud->id;
-                        $bud_id = $sub_bud->category_id;
+                        if ($sub_bud) {
+                            $sub_bud_id = $sub_bud->id;
+                            $bud_id = $sub_bud->category_id;
+                        }
                     } else {
                         $bud_id = $bud->id;
                     }

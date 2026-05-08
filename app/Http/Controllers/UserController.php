@@ -13,7 +13,7 @@ use Ramsey\Uuid\Uuid;
 
 class UserController extends Controller
 {
-    public $company_ids = [475, 254, 538, 513, 514, 282, 523, 288, 470, 292, 550, 471, 293, 473, 305, 518, 306];
+    public $company_ids = [254, 538, 513, 514, 282, 523, 288, 470, 292, 550, 471, 293, 473, 305, 518, 306];
     public $company_id  = null;
     public $new_company = null;
 
@@ -1261,7 +1261,13 @@ class UserController extends Controller
 
     public function moveTransactions()
     {
-        $trans = DB::table('transactions')->where('company_id', $this->company_id)->get();
+        $max = DB::connection('mysql2')->table('transactions')->where('company_id', $this->new_company)->orderByDesc('id')->first();
+        if ($max) {
+            $trans = DB::table('transactions')->where('company_id', $this->company_id)->where('id', '>', $max->old_transaction_id)->get();
+            // return $trans;
+        } else {
+            $trans = DB::table('transactions')->where('company_id', $this->company_id)->get();
+        }
         // return $trans;
 
         foreach ($trans as $tran) {

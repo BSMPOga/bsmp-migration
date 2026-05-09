@@ -651,7 +651,7 @@ class UserController extends Controller
             return 'New company not found';
         }
 
-        $max = DB::connection('mysql2')->table('budget_categories')->where('company_id', $this->new_company)->orderByDesc('id')->first();
+        $max = DB::connection('mysql2')->table('budget_categories')->where('company_id', $this->new_company)->where('old_budget_id', '!=', null)->orderByDesc('id')->first();
 
         if ($max) {
             $ab = DB::table('categories')->where('company_id', $this->company_id)->where('id', '>', $max->old_budget_id)->get();

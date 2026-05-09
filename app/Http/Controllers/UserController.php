@@ -13,7 +13,7 @@ use Ramsey\Uuid\Uuid;
 
 class UserController extends Controller
 {
-    public $company_ids = [337, 505];
+    public $company_ids = [505];
     public $company_id  = null;
     public $new_company = null;
 
@@ -651,7 +651,13 @@ class UserController extends Controller
             return 'New company not found';
         }
 
-        $ab = DB::table('categories')->where('company_id', $this->company_id)->get();
+        $max = DB::connection('mysql2')->table('budget_categories')->where('company_id', $this->new_company)->orderByDesc('id')->first();
+
+        if ($max) {
+            $ab = DB::table('categories')->where('company_id', $this->company_id)->where('id', '>', $max->old_budget_id)->get();
+        } else {
+            $ab = DB::table('categories')->where('company_id', $this->company_id)->get();
+        }
         DB::transaction(function () use ($ab) {
             $indexed = [];
             foreach ($ab as $item) {
@@ -982,9 +988,10 @@ class UserController extends Controller
                                 $bud = DB::connection('mysql2')->table('budget_categories')->where('old_budget_id', $prod->category)->where('company_id', $this->new_company)->first();
                                 if (!$bud) {
                                     $sub_bud = DB::connection('mysql2')->table('budget_sub_categories')->where('old_sub_budget_id', $prod->category)->first();
-                                    // if()
-                                    $sub_bud_id = $sub_bud->id;
-                                    $bud_id = $sub_bud->category_id;
+                                    if ($sub_bud) {
+                                        $sub_bud_id = $sub_bud->id;
+                                        $bud_id = $sub_bud->category_id;
+                                    }
                                 } else {
                                     $bud_id = $bud->id;
                                 }

@@ -39,8 +39,6 @@ class RunMigration implements ShouldQueue
             $controller->company_id  = $id;
             $controller->new_company = '';
 
-
-
             $company = DB::connection('mysql2')->table('companies')->where('old_company_id', $id)->first();
             if (!$company) {
                 Log::error("Company with old_company_id [{$id}] not found in the database.");
@@ -62,6 +60,15 @@ class RunMigration implements ShouldQueue
                 Log::info("Payee Migration company [{$id}] done");
             } catch (\Throwable $e) {
                 Log::error("Payee Migration company [{$id}] failed: " . $e->getMessage());
+                break;
+            }
+
+            Log::info("Expense Category Migration started for company [{$id}]");
+            try {
+                $controller->moveExpenseCategories();
+                Log::info("Expense Category Migration company [{$id}] done");
+            } catch (\Throwable $e) {
+                Log::error("Expense Category Migration company [{$id}] failed: " . $e->getMessage());
                 break;
             }
 

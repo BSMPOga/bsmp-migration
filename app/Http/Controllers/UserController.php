@@ -730,7 +730,7 @@ class UserController extends Controller
 
     public function movePayments()
     {
-        $max = DB::connection('mysql2')->table('payment_requests')->where('company_id', $this->new_company)->orderByDesc('id')->first();
+        $max = DB::connection('mysql2')->table('payment_requests')->where('company_id', $this->new_company)->where('old_payment_id', '!=', null)->orderByDesc('id')->first();
 
         if ($max) {
             $payments = DB::table('payments')->where('company_id', $this->company_id)->where('id', '>', $max->old_payment_id)->get();

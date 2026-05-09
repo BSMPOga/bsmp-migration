@@ -13,7 +13,7 @@ use Ramsey\Uuid\Uuid;
 
 class UserController extends Controller
 {
-    public $company_ids = [366, 308, 398, 309, 310, 561, 411, 311, 312, 563, 578, 565, 429];
+    public $company_ids = [429];
     public $company_id  = null;
     public $new_company = null;
 

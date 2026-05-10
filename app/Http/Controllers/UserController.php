@@ -13,7 +13,7 @@ use Ramsey\Uuid\Uuid;
 
 class UserController extends Controller
 {
-    public $company_ids = [505];
+    public $company_ids = [566, 430, 315, 431, 316, 569, 571, 432, 322, 462, 331, 572, 466, 520, 333, 581, 580];
     public $company_id  = null;
     public $new_company = null;
 
@@ -911,7 +911,7 @@ class UserController extends Controller
 
     public function movePurchases()
     {
-        $max = DB::connection('mysql2')->table('purchases')->where('company_id', $this->new_company)->orderByDesc('id')->first();
+        $max = DB::connection('mysql2')->table('purchases')->where('company_id', $this->new_company)->where('old_purchase_id', '!=', null)->orderByDesc('id')->first();
 
         if ($max) {
             $purchases = DB::table('order')->where('company_id', $this->company_id)->where('id', '>', $max->old_purchase_id)->get();
@@ -1269,7 +1269,7 @@ class UserController extends Controller
 
     public function moveTransactions()
     {
-        $max = DB::connection('mysql2')->table('transactions')->where('company_id', $this->new_company)->orderByDesc('id')->first();
+        $max = DB::connection('mysql2')->table('transactions')->where('company_id', $this->new_company)->where('old_transaction_id', '!=', null)->orderByDesc('id')->first();
         if ($max) {
             $trans = DB::table('transactions')->where('company_id', $this->company_id)->where('id', '>', $max->old_transaction_id)->get();
             // return $trans;

@@ -458,7 +458,7 @@ class UserController extends Controller
 
     public function migratePayee()
     {
-        $max = DB::connection('mysql2')->table('payees')->where('company_id', $this->new_company)->orderByDesc('id')->first();
+        $max = DB::connection('mysql2')->table('payees')->where('company_id', $this->new_company)->where('old_payee_id', '!=', null)->orderByDesc('id')->first();
 
         if ($max) {
             $payees = DB::table('suppliers')->where('company_id', $this->company_id)->where('id', '>', $max->old_payee_id)->get();

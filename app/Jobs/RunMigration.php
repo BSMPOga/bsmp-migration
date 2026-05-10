@@ -63,14 +63,14 @@ class RunMigration implements ShouldQueue
                 break;
             }
 
-            Log::info("Expense Category Migration started for company [{$id}]");
-            try {
-                $controller->moveExpenseCategories();
-                Log::info("Expense Category Migration company [{$id}] done");
-            } catch (\Throwable $e) {
-                Log::error("Expense Category Migration company [{$id}] failed: " . $e->getMessage());
-                break;
-            }
+            // Log::info("Expense Category Migration started for company [{$id}]");
+            // try {
+            //     $controller->moveExpenseCategories();
+            //     Log::info("Expense Category Migration company [{$id}] done");
+            // } catch (\Throwable $e) {
+            //     Log::error("Expense Category Migration company [{$id}] failed: " . $e->getMessage());
+            //     break;
+            // }
 
             Log::info("Purchase Migration started for company [{$id}]");
             try {

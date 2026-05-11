@@ -835,6 +835,7 @@ class UserController extends Controller
                         DB::connection('mysql2')->table('request_queue')->insert([
                             'entity_type' => 'Entity/Payment',
                             'entity_id' => $pid,
+                            'entity_mode' => !$pay->type || $pay->type == 'recurring' ? 'online' : $pay->type,
                             'level' => 'endorsement',
                             'notes' => $endorser->endorsement_notes,
                             'status' => $endorser->endorsement_status == 2 ? 'declined' : ($endorser->endorsement_status == 1 ? 'endorsed' : ($endorser->endorsement_status == 3 ? 'hidden' : 'pending')),
@@ -842,7 +843,7 @@ class UserController extends Controller
                             'updated_at' => !$endorser->DATE_MODIFIED ? $endorser->DATE_ADDED : $endorser->DATE_MODIFIED,
                             'actioned_by_id' => $staff->id,
                             'added_by_id' => $pay->paid_by == 828 ? 1 : $raised_by->id,
-                            'company_id' => $this->new_company
+                            'company_id' => $this->new_company,
                         ]);
                     }
                 }
@@ -861,6 +862,7 @@ class UserController extends Controller
                             DB::connection('mysql2')->table('request_queue')->insert([
                                 'entity_type' => 'Entity/Payment',
                                 'entity_id' => $pid,
+                                'entity_mode' => !$pay->type || $pay->type == 'recurring' ? 'online' : $pay->type,
                                 'level' => 'approval',
                                 'notes' => $approver->APPROVAL_NOTES,
                                 'status' => $approver->APPROVAL_STATUS == 2 ? 'declined' : ($approver->APPROVAL_STATUS == 1 ? 'approved' : ($approver->APPROVAL_STATUS == 3 ? 'hidden' : 'pending')),

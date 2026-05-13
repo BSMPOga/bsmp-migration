@@ -13,7 +13,7 @@ use Ramsey\Uuid\Uuid;
 
 class UserController extends Controller
 {
-    public $company_ids = [525];
+    public $company_ids = [520];
     public $company_id  = null;
     public $new_company = null;
 
@@ -1215,7 +1215,13 @@ class UserController extends Controller
 
     public function moveBilling()
     {
-        $bills = DB::table('billings')->where('companyId', $this->company_id)->get();
+        $max = DB::connection('mysql2')->table('billings')->where('company_id', $this->new_company)->where('old_billing_id', '!=', null)->orderByDesc('id')->first();
+        if ($max) {
+            $bills = DB::table('billings')->where('companyId', $this->company_id)->where('id', '>', $max->old_billing_id)->get();
+        } else {
+            $bills = DB::table('billings')->where('companyId', $this->company_id)->get();
+        }
+        // return $bills;
         foreach ($bills as $bill) {
             Log::info("Billing - $bill->id");
             $billing_category_id = 1;
@@ -1266,7 +1272,7 @@ class UserController extends Controller
             ]);
         }
 
-        return "$this->new_company billing done";;
+        return "$this->new_company billing done";
     }
 
     public function moveTransactions()
